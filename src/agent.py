@@ -82,7 +82,7 @@ def classifier(state: State):
         return "pdf"
     elif text.startswith("web "):
         return "web"
-    elif text.startswith("summary"):
+    elif "summary" in text:
         return "summary"
     return "assistant"
 
