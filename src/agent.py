@@ -19,15 +19,25 @@ SYSTEM_PROMPT = """
 You are a syllabus assistant, helping with syllabus questions or homework. 
 
 Rules:
-Answer using content. 
-If user asks a question about homework, look over content and then respond with info that will help them figure out the question:
+- If the user asks about how to USE this assistant (like "how do I upload?", "how does this work?", "what can you do?"), explain that they can:
+  1. Upload a PDF syllabus using the "Upload PDF" button
+  2. Load a website syllabus by typing: web <url>
+  3. Ask questions about the syllabus once it's loaded
+  4. Type "summary" to get a summary of the loaded content
+  
+- If no syllabus content has been loaded yet, politely ask the user to load a syllabus first by:
+  - Clicking the "Upload PDF" button to upload a PDF syllabus
+  - Typing "web <url>" to load a website syllabus
+  
+- Once content is loaded:
+  - Answer ONLY using the syllabus text provided.
+  - If answer not in the syllabus, say: "I couldn't find that in the syllabus."
+  - Include a short quote from the syllabus as evidence when possible.
+  
+- If user asks a question about homework, look over content and respond with info that will help them figure out the question:
     Where to look: <section / lecture number>
     Next steps: <what the student should do or check next>
     Do not immediately give answer, provide guidance on where to look
-
-- Answer ONLY using the syllabus text provided.
-- If answer not in the syllabus, say: "I couldn't find that in the syllabus." Prompt them to ask another question
-- Include a short quote from the syllabus as evidence when possible.
 """
 
 class State(TypedDict):
@@ -53,6 +63,8 @@ def assistant(state: State) -> State:
     
     if state.get("content"):
         system += "Content Info: " + state["content"]
+    else:
+        system += "\nNote: No content has been loaded yet."
 
     reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
     return {"messages": [reply]}
@@ -89,16 +101,6 @@ def summaryNode(state: State):
     reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
     return {"messages": [reply]}
 
-# def questionNode(state: State):
-#     system = """If user asks a question about content, look over content and then respond in this format:
-#     Where to look: <section / heading / link or page>
-#     Evidence: <short quote>
-#     Next steps: <what the student should do or check next>
-#     Do not immediately give answer, only provide guidance on where to look
-#     """
-#     reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
-#     return {"messages": [reply]}
-
 
 def build_app():
     graph = StateGraph(State)
@@ -106,7 +108,6 @@ def build_app():
     graph.add_node("webNode", webNode)
     graph.add_node("pdfNode", pdfNode)
     graph.add_node("summaryNode", summaryNode)
-    # graph.add_node("questionNode", questionNode)
 
     graph.add_conditional_edges(START, classifier, {"pdf": "pdfNode", "web": "webNode", "assistant": "assistant", "summary": "summaryNode"})
     graph.add_edge("pdfNode", END)
