@@ -19,16 +19,14 @@ SYSTEM_PROMPT = """
 You are a syllabus assistant, helping with syllabus questions or homework. 
 
 Rules:
-
-if data is missing and user asks question, ask them to enter something with pdf <path> or web <url>
-
-If the user says "load <path>" and it looks like a local file path, call pdfsyllabus(path).
-If the user says "load <url>" and it starts with http:// or https://, call coursewebsite(url).
-
-if data exists, answer using content. 
+Answer using content. 
+If user asks a question about homework, look over content and then respond with info that will help them figure out the question:
+    Where to look: <section / lecture number>
+    Next steps: <what the student should do or check next>
+    Do not immediately give answer, provide guidance on where to look
 
 - Answer ONLY using the syllabus text provided.
-- If the answer is not in the syllabus, say: "I couldn't find that in the syllabus." Prompt them to ask another question
+- If answer not in the syllabus, say: "I couldn't find that in the syllabus." Prompt them to ask another question
 - Include a short quote from the syllabus as evidence when possible.
 """
 
@@ -91,6 +89,16 @@ def summaryNode(state: State):
     reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
     return {"messages": [reply]}
 
+# def questionNode(state: State):
+#     system = """If user asks a question about content, look over content and then respond in this format:
+#     Where to look: <section / heading / link or page>
+#     Evidence: <short quote>
+#     Next steps: <what the student should do or check next>
+#     Do not immediately give answer, only provide guidance on where to look
+#     """
+#     reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
+#     return {"messages": [reply]}
+
 
 def build_app():
     graph = StateGraph(State)
@@ -98,6 +106,7 @@ def build_app():
     graph.add_node("webNode", webNode)
     graph.add_node("pdfNode", pdfNode)
     graph.add_node("summaryNode", summaryNode)
+    # graph.add_node("questionNode", questionNode)
 
     graph.add_conditional_edges(START, classifier, {"pdf": "pdfNode", "web": "webNode", "assistant": "assistant", "summary": "summaryNode"})
     graph.add_edge("pdfNode", END)
@@ -113,9 +122,14 @@ def main():
     state = {"messages": messages, "data": None, "content": None}
 
     print("Syllabus Agent running. Type 'exit' to quit.")
+    i = ""
 
     while True:
-        user = input("\nPlease enter a question, type pdf <path>, web <url>, summary, or exit/quit: ").strip()
+        if state.get("data"):
+            i = "\nPlease enter a question, type pdf <path>, web <url>, summary, or exit/quit: "
+        else:
+            i = "\nPlease type pdf <path>, web <url>, or exit/quit: "
+        user = input(i).strip()
         if user.lower() in {"exit", "quit"}:
             print("Goodbye!")
             break
