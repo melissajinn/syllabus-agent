@@ -1,11 +1,13 @@
-from typing import TypedDict, List, Literal
+from typing import TypedDict, List, Annotated
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 
 from dotenv import load_dotenv
 load_dotenv()
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage
-from langgraph.graph import StateGraph, END
+from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage, AIMessage
+from langgraph.graph import START, StateGraph, END
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import ToolMessage
@@ -18,12 +20,12 @@ You are a syllabus assistant.
 
 Rules:
 
-if syllabus_text is missing and user asks question, ask them to enter something with pdf <path> or web <url>
+if data is missing and user asks question, ask them to enter something with pdf <path> or web <url>
 
 If the user says "load <path>" and it looks like a local file path, call pdfsyllabus(path).
 If the user says "load <url>" and it starts with http:// or https://, call coursewebsite(url).
 
-if syllabus_text exists, answer using it. 
+if data exists, answer using content. 
 
 - Answer ONLY using the syllabus text provided.
 - If the answer is not in the syllabus, say: "I couldn't find that in the syllabus."
@@ -31,10 +33,10 @@ if syllabus_text exists, answer using it.
 """
 
 class State(TypedDict):
-    messages: List[AnyMessage]
-    syllabus_text: str | None
+    messages: Annotated[list[AnyMessage], add_messages]
+    data: str | None
+    content: str | None
 
-@tool
 def pdfsyllabus(path: str) -> str:
     """Load syllabus PDF from a local path and return extracted text."""
     return loadpdf(path)
@@ -43,51 +45,67 @@ def websyllabus(url: str) -> str:
     """Load text from a website url and return extracted text."""
     return loadwebsite(url)
 
-def store_syllabus_node(state: State) -> State:
-    last = state["messages"][-1]
-    if isinstance(last, ToolMessage):
-        return {"messages": state["messages"][:-1], "syllabus_text": last.content}
-    return state
-
-tools = [pdfsyllabus, websyllabus]
+# tools = [pdfsyllabus, websyllabus]
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-llmt = llm.bind_tools(tools)
 
-def assistant_node(state: State) -> State:
+def assistant(state: State) -> State:
     messages = state["messages"]
     system = SYSTEM_PROMPT
 
-    if state.get("syllabus_text"):
-        system += "SYLLABUS TEXT: " + state["syllabus_text"]
+    if state.get("data"):
+        system += "Data Type: " + state["data"]
+    
+    if state.get("content"):
+        system += "Content Info: " + state["content"]
 
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=system)] + messages
-    else:
-        messages[0] = SystemMessage(content=system)
+    reply = llm.invoke([SystemMessage(content=system)] + state["messages"])
+    return {"messages": [reply]}
 
-    if isinstance(messages[-1], ToolMessage):
-        return {**state, "messages": messages}
 
-    reply = llmt.invoke(messages)
-    return {**state, "messages": messages + [reply]}
+def webNode(state: State) -> State:
+    url = state["messages"][-1].content[len("web "):].strip()
+    content = websyllabus(url)
+    return {
+        "data": "web",
+        "content": content,
+        "messages": [AIMessage(content="Loaded website.")],
+    }
+
+def pdfNode(state: State) -> State:
+    pdf = state["messages"][-1].content[len("pdf "):].strip()
+    content = pdfsyllabus(pdf)
+    return {
+        "data": "pdf",
+        "content": content,
+        "messages": [AIMessage(content="Loaded syllabus.")],
+    }
+
+def classifier(state: State):
+    text = state["messages"][-1].content.strip().lower()
+    if text.startswith("pdf "):
+        return "pdfNode"
+    elif text.startswith("web "):
+        return "webNode"
+    return "assistant"
 
 def build_app():
     graph = StateGraph(State)
-    graph.add_node("assistant", assistant_node)
-    graph.add_node("tools", ToolNode(tools))
-    graph.add_node("store", store_syllabus_node)
-    graph.set_entry_point("assistant")
-    graph.add_conditional_edges("assistant", tools_condition, {"tools": "tools", END: END})
-    graph.add_edge("tools", "store")
-    graph.add_edge("store", "assistant")      
+    graph.add_node("assistant", assistant)
+    graph.add_node("webNode", webNode)
+    graph.add_node("pdfNode", pdfNode)
+
+    graph.add_conditional_edges(START, classifier, {"pdfNode": "pdfNode", "webNode": "webNode", "assistant": "assistant"})
+    graph.add_edge("pdfNode", END)
+    graph.add_edge("webNode", END)
+
     return graph.compile()
 
 def main():
 
     app = build_app()
     messages: List[AnyMessage] = []
-    state = {"messages": messages, "syllabus_text": None}
+    state = {"messages": messages, "data": None, "content": None}
 
     print("Syllabus Agent running. Type 'exit' to quit.")
 
@@ -96,19 +114,6 @@ def main():
         if user.lower() in {"exit", "quit"}:
             print("Goodbye!")
             break
-
-        if user.startswith("pdf "):
-            path = user[len("pdf "):].strip()
-            state["syllabus_text"] = loadpdf(path)
-            print("Loaded syllabus.")
-            continue
-
-        if user.startswith("web "):
-            path = user[len("web "):].strip()
-            state["syllabus_text"] = websyllabus(path)
-            print(state["syllabus_text"])
-            print("Loaded website.")
-            continue
 
         state["messages"].append(HumanMessage(content=user))
         state = app.invoke(state)

@@ -4,3 +4,8 @@ __pycache__/
 .env
 data/
 chroma/
+node_modules/
+build/
+.DS_Store
+.vscode/
+.idea/
