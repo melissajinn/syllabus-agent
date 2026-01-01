@@ -14,7 +14,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"], # allows data retrieval, updates, delition
+    allow_methods=["*"], # allows data retrieval, updates, deletion
     allow_headers=["*"], # allows headers (metadata) to be sent to backend
 )
 
@@ -33,7 +33,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         with tempfile.NamedTemporaryFile(delete=True, suffix=".pdf") as tmp_file:
             content = await file.read()
             tmp_file.write(content)
-            tmp_file.flush()
+            tmp_file.flush() # ensures data is written before accessing
             tmp_path = tmp_file.name
         
             # Initialize conversation state if needed
@@ -49,8 +49,6 @@ async def upload_pdf(file: UploadFile = File(...)):
             # load pdf
             from langchain_core.messages import HumanMessage
             state["messages"].append(HumanMessage(content="pdf " + tmp_path))
-        
-            # invoke agent
             result = agent.invoke(state)
             conversations["default"] = result
         
@@ -61,7 +59,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 # actual chat
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    # using single default conversation rne
+    # using single default conversation rn
     if "default" not in conversations:
         conversations["default"] = {
             "messages": [],
