@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 # Install backend deps
-pip install --no-cache-dir -r backend/requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
 # Install frontend deps
 # cd frontend
