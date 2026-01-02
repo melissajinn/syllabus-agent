@@ -9,7 +9,7 @@ npm install
 cd ..
 
 # Start backend in background
-uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+uvicorn src.app:app --host 0.0.0.0 --port $PORT
 
 # # Start frontend (foreground – keeps container alive)
 # cd frontend
