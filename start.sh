@@ -1,12 +1,12 @@
 #!/bin/sh
-
+set -e
 # Install backend deps
 pip install --no-cache-dir -r backend/requirements.txt
 
 # Install frontend deps
-cd frontend
-npm install
-cd ..
+# cd frontend
+# npm install
+# cd ..
 
 # Start backend in background
 uvicorn src.app:app --host 0.0.0.0 --port $PORT
