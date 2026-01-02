@@ -90,17 +90,17 @@ function App() {
             </div>
           )}
           {chat.map((msg, i) => (
-            <div key={i} className={`message ${msg.role}`}> // identifies user vs assistant message
-              <strong>{msg.role === 'user' ? 'You' : 'Assistant'}:</strong> // if user message, show "You", else "Assistant"
-              <div>{msg.content}</div> // display content
+            <div key={i} className={`message ${msg.role}`}> 
+              <strong>{msg.role === 'user' ? 'You' : 'Assistant'}:</strong> 
+              <div>{msg.content}</div>
             </div>
           ))}
-          {(loading || uploading) && <div className="loading">Agent is thinking...</div>} // if loading or uploading, show this message
+          {(loading || uploading) && <div className="loading">Agent is thinking...</div>}
         </div>
         
         <div className="input-area">
           <label className="upload-btn">
-            📎 Upload PDF
+            📎 Upload File
             <input 
               type="file" 
               accept=".pdf" 
@@ -117,7 +117,7 @@ function App() {
             placeholder="Type a message or upload a PDF..." // what to show on input box
             disabled={loading} // disables input while loading is true
           />
-          <button onClick={sendMessage} disabled={loading || !message.trim()}> // disable send button if loading or empty message
+          <button onClick={sendMessage} disabled={loading || !message.trim()}> 
             Send
           </button>
         </div>
