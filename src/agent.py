@@ -53,6 +53,8 @@ def websyllabus(url: str) -> str:
     """Load text from a website url and return extracted text."""
     return loadwebsite(url)
 
+# tools = [pdfsyllabus, websyllabus]
+
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 def assistant(state: State) -> State:

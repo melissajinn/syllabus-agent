@@ -9,59 +9,57 @@ app = FastAPI()
 
 agent = build_app()
 
+# connects frontend and backend, lets frontend access backend api
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"], # allows data retrieval, updates, deletion
+    allow_headers=["*"], # allows headers (metadata) to be sent to backend
 )
 
-class ChatRequest(BaseModel):
+class ChatRequest(BaseModel): # pydantic model to validate chat as valid string
     message: str
 
-# Store conversation state per session
+# store conversation here
 conversations = {}
 
+# upload pdf function
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     """Handle PDF file upload"""
     try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        # save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=True, suffix=".pdf") as tmp_file:
             content = await file.read()
             tmp_file.write(content)
+            tmp_file.flush() # ensures data is written before accessing
             tmp_path = tmp_file.name
         
-        # Initialize conversation state if needed
-        if "default" not in conversations:
-            conversations["default"] = {
-                "messages": [],
-                "data": None,
-                "content": None
-            }
+            # Initialize conversation state if needed
+            if "default" not in conversations:
+                conversations["default"] = {
+                    "messages": [],
+                    "data": None,
+                    "content": None
+                }
         
-        state = conversations["default"]
+            state = conversations["default"]
         
-        # Load the PDF using your agent's logic
-        from langchain_core.messages import HumanMessage
-        state["messages"].append(HumanMessage(content=f"pdf {tmp_path}"))
-        
-        # Invoke agent to process the PDF
-        result = agent.invoke(state)
-        conversations["default"] = result
-        
-        # Clean up temp file
-        os.unlink(tmp_path)
+            # load pdf
+            from langchain_core.messages import HumanMessage
+            state["messages"].append(HumanMessage(content="pdf " + tmp_path))
+            result = agent.invoke(state)
+            conversations["default"] = result
         
         return {"response": result["messages"][-1].content, "filename": file.filename}
     except Exception as e:
         return {"error": str(e)}
 
+# actual chat
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    # For now, using a single conversation state
-    # In production, you'd use session IDs
+    # using single default conversation rn
     if "default" not in conversations:
         conversations["default"] = {
             "messages": [],
@@ -71,22 +69,18 @@ async def chat(request: ChatRequest):
     
     state = conversations["default"]
     
-    # Add user message
+    # user message
     from langchain_core.messages import HumanMessage
     state["messages"].append(HumanMessage(content=request.message))
-    
-    # Invoke agent
+
     result = agent.invoke(state)
-    
-    # Update state
     conversations["default"] = result
-    
-    # Return the last message
     return {"response": result["messages"][-1].content}
 
+# check that server is running
 @app.get("/")
 async def root():
-    return {"status": "ok"}
+    return {"status": "running"}
 
 @app.post("/reset")
 async def reset():
