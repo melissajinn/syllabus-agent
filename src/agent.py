@@ -12,8 +12,8 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import tools_condition
-from pdf_load import loadpdf
-from coursewebsite import loadwebsite
+from .pdf_load import loadpdf
+from .coursewebsite import loadwebsite
 
 SYSTEM_PROMPT = """
 You are a syllabus assistant, helping with syllabus questions or homework. 
